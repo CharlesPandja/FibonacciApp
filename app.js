@@ -1,31 +1,71 @@
-// Crée un nouveau Web Worker
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const width = canvas.width;
+const height = canvas.height;
+const resolution = 10;
+const cols = width / resolution;
+const rows = height / resolution;
+
+let grid = createGrid();
+let running = false;
+let interval;
 const worker = new Worker('worker.js');
 
-// Récupère les éléments de l'interface
-const numberInput = document.getElementById('number');
-const calculateButton = document.getElementById('calculate');
-const outputElement = document.getElementById('output');
+// Initialiser une grille vide
+function createGrid() {
+    return new Array(cols).fill(null)
+        .map(() => new Array(rows).fill(0));
+}
 
-// Lorsque l'utilisateur clique sur "Calculer"
-calculateButton.addEventListener('click', () => {
-    const number = parseInt(numberInput.value, 10);
-    
-    // Affiche un message pendant le calcul
-    outputElement.textContent = 'Calcul en cours...';
+// Dessiner la grille sur le canvas
+function drawGrid(grid) {
+    ctx.clearRect(0, 0, width, height);
+    for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+            const cell = grid[i][j];
+            ctx.beginPath();
+            ctx.rect(i * resolution, j * resolution, resolution, resolution);
+            ctx.fillStyle = cell ? '#000' : '#fff';
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+}
 
-    // Envoie le nombre au Web Worker
-    worker.postMessage(number);
+// Envoyer la grille au Web Worker pour calculer la prochaine génération
+function nextGeneration() {
+    worker.postMessage(grid);
+}
+
+// Mettre à jour la grille avec la génération suivante renvoyée par le Web Worker
+worker.onmessage = function(event) {
+    grid = event.data;
+    drawGrid(grid);
+};
+
+document.getElementById('start').addEventListener('click', () => {
+    if (!running) {
+        running = true;
+        const speed = document.getElementById('speed').value;
+        interval = setInterval(nextGeneration, speed);
+    }
 });
 
-// Lorsque le Web Worker renvoie le résultat
-worker.onmessage = function(event) {
-    const result = event.data;
-    // Affiche le résultat dans l'interface
-    outputElement.textContent = result;
-};
+document.getElementById('pause').addEventListener('click', () => {
+    running = false;
+    clearInterval(interval);
+});
 
-// Gestion des erreurs éventuelles
-worker.onerror = function(error) {
-    console.error('Erreur dans le worker:', error.message);
-    outputElement.textContent = 'Une erreur est survenue.';
-};
+document.getElementById('clear').addEventListener('click', () => {
+    grid = createGrid();
+    drawGrid(grid);
+});
+
+canvas.addEventListener('click', (event) => {
+    const x = Math.floor(event.offsetX / resolution);
+    const y = Math.floor(event.offsetY / resolution);
+    grid[x][y] = grid[x][y] ? 0 : 1;
+    drawGrid(grid);
+});
+
+drawGrid(grid);
